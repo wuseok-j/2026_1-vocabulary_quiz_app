@@ -10,13 +10,20 @@ from vocabulary_quiz_app.quiz_logic import Word, check_answer, draw_word
 
 class VocabularyQuizApp:
     def __init__(self, root: tk.Tk, words: list[Word]) -> None:
+        """단어장 퀴즈 앱의 메인 UI 및 내부 상태를 초기화합니다."""
         self.words = words
         self.rng = random.Random()
         self.current: Word | None = None
         self.checked = False
+        
+        # 점수 및 퀴즈 진행 상태
         self.score = 0
         self.total = 0
+        
+        # 학습 기록 저장을 위한 리스트 (단어, 입력, 정답 뜻, 정답 여부, 복습 모드 여부)
         self.history = []
+        
+        # 오답 관리 (틀린 단어 누적 및 복습 모드용 큐)
         self.incorrect_words: list[Word] = []
         self.review_words: list[Word] = []
         self.is_review_mode = False
@@ -62,8 +69,13 @@ class VocabularyQuizApp:
         self.next_word()
 
     def next_word(self, keep_feedback: bool = False) -> None:
+        """다음 단어를 무작위로 뽑아 화면에 표시합니다.
+        복습 모드일 경우 오답 목록(review_words)에서만 단어를 뽑습니다."""
+        # 현재 모드에 따라 출제할 단어 풀(pool)을 결정
         active_pool = self.review_words if self.is_review_mode else self.words
+        
         if not active_pool:
+            # 복습할 단어가 더 이상 없으면 일반 모드로 자동 복귀
             if self.is_review_mode:
                 self.is_review_mode = False
                 self.review_btn_text.set("오답 복습")
@@ -86,6 +98,7 @@ class VocabularyQuizApp:
         self.answer_entry.focus()
 
     def check_current(self) -> None:
+        """사용자가 입력한 답안을 채점하고, 결과에 따라 점수와 오답 목록을 갱신합니다."""
         if self.current is None or self.checked:
             return
         self.checked = True
@@ -93,16 +106,19 @@ class VocabularyQuizApp:
         user_input = self.answer_entry.get()
         is_correct = check_answer(self.current, user_input)
         
+        # 채점 결과를 학습 기록에 추가
         self.history.append((self.current.term, user_input, self.current.meaning, is_correct, self.is_review_mode))
         
         if is_correct:
             self.score += 1
             self.feedback_var.set("정답입니다!")
+            # 복습 모드에서 정답을 맞추면 복습 및 오답 목록에서 제거하여 완전히 마스터했음을 표시
             if self.is_review_mode and self.current in self.review_words:
                 self.review_words.remove(self.current)
                 if self.current in self.incorrect_words:
                     self.incorrect_words.remove(self.current)
         else:
+            # 일반 모드에서 틀렸을 경우에만 오답 목록에 추가 (중복 방지)
             if not self.is_review_mode and self.current not in self.incorrect_words:
                 self.incorrect_words.append(self.current)
             self.feedback_var.set(f"오답입니다. 정답: {self.current.meaning}")
@@ -110,6 +126,7 @@ class VocabularyQuizApp:
         self.check_button.state(["disabled"])
 
     def show_statistics(self) -> None:
+        """지금까지의 학습 통계(정답률, 모드별 성과 등)와 전체 풀이 기록을 새 창에 보여줍니다."""
         stat_window = tk.Toplevel()
         stat_window.title("학습 통계")
         stat_window.geometry("480x350")
@@ -155,7 +172,9 @@ class VocabularyQuizApp:
             tree.insert("", tk.END, values=(mode_str, term, user_input, result_str))
 
     def toggle_review(self) -> None:
+        """일반 모드와 오답 복습 모드를 전환합니다."""
         if self.is_review_mode:
+            # 복습 모드 -> 일반 모드로 돌아갈 때 상태 초기화
             self.is_review_mode = False
             self.review_btn_text.set("오답 복습")
             self.score = 0
@@ -167,6 +186,8 @@ class VocabularyQuizApp:
             if not self.incorrect_words:
                 self.feedback_var.set("복습할 오답이 없습니다.")
                 return
+            
+            # 일반 모드 -> 복습 모드 진입 시 오답 목록을 복습 큐(review_words)로 복사
             self.is_review_mode = True
             self.review_words = list(self.incorrect_words)
             self.review_btn_text.set("일반 모드로 돌아가기")
@@ -177,6 +198,7 @@ class VocabularyQuizApp:
             self.next_word(keep_feedback=True)
 
     def open_word_management(self) -> None:
+        """현재 등록된 단어 목록을 조회하고, 새로운 단어를 추가하거나 기존 단어를 삭제하는 창을 엽니다."""
         manage_window = tk.Toplevel()
         manage_window.title("단어 관리")
         manage_window.geometry("400x400")
